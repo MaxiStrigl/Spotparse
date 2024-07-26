@@ -2,25 +2,77 @@
 
 import xml.etree.ElementTree as ET
 import sys
+from typing import List, Optional
+
+class Bug:
+    def __init__(self, long_message=None, source_path=None, line_number=-1, category=None, bug_type=None) -> None:
+        self.long_message: Optional[str] = long_message
+        self.source_path: Optional[str] = source_path
+        self.line_number: int = int(line_number) if line_number is not None else -1
+        self.category: Optional[str] = category
+        self.bug_type: Optional[str] = bug_type
+
+    def __int__(self) -> int:
+        return self.line_number
+
+    def __repr__(self) -> str:
+        return f"{self.bug_type}"
+
+def parse_xml_object(xml_object) -> Optional[Bug]:
+    source_line = xml_object.find('SourceLine')
+
+    long_message_element = xml_object.find('LongMessage')
+    long_message: str = ""
+    if long_message_element is not None:
+        long_message = long_message_element.text
+
+    if source_line is not None:
+        bug_object = Bug(
+            long_message=long_message,
+            source_path=source_line.get('sourcepath'),
+            line_number=source_line.get('start'),
+            category=xml_object.get('category'),
+            bug_type=xml_object.get('type')
+        )
+        return bug_object
+    return None
+
+
+def sort_categories(bugs_dict):
+    for category, bugs in bugs_dict.items():
+        sorted_bugs = sorted(bugs, key=lambda b: b.line_number)
+        bugs_dict[category] = sorted_bugs
+    return bugs_dict
+
+def print_out_bugs(bugs_dict):
+    for category, bugs in bugs_dict.items():
+        print(f"Category: {category} ({len(bugs)})")
+        for entry in bugs:
+            print(f"    {entry.bug_type}: {entry.long_message}")
+            print(f"    File: {entry.source_path} (Line: {entry.line_number})\n")
+
+def convert_xml_to_dict(file_path):
+    tree = ET.parse(file_path)
+    root = tree.getroot()
+
+    bugs_dict: dict = {}
+
+    for bug_instance in root.findall('.//BugInstance'):
+        bug_object = parse_xml_object(bug_instance)
+        if bug_object is None:
+            continue
+
+        if bug_object.category not in bugs_dict:
+            bugs_dict[bug_object.category] = []
+
+        bugs_dict[bug_object.category].append(bug_object)
+    return bugs_dict
 
 def parse_spotbugs_report(file_path):
     try:
-        tree = ET.parse(file_path)
-        root = tree.getroot()
-
-        for bug_instance in root.findall('.//BugInstance'):
-            bug_type = bug_instance.get('type')
-            long_message_elem = bug_instance.find('LongMessage')
-            source_line = bug_instance.find('SourceLine')
-
-            long_message = long_message_elem.text if long_message_elem is not None else "No message"
-            source_path = source_line.get('sourcepath') if source_line is not None else "Unknown file"
-            line_number = source_line.get('start') if source_line is not None else "Unknown line"
-
-            print(f"{bug_type}: {long_message}")
-            print(f"File: {source_path} (Line: {line_number})")
-            print()
-
+        bugs_dict = convert_xml_to_dict(file_path)
+        bugs_dict = sort_categories(bugs_dict)
+        print_out_bugs(bugs_dict)
     except ET.ParseError as e:
         print(f"Error parsing XML: {e}")
     except Exception as e:
