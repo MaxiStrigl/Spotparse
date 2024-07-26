@@ -27,3 +27,6 @@ Now you should be able to use the command
 ```bash
 spotparse build/spotbugs-report.xml
 ```
+
+## Contributors
+[Libroru](https://github.com/Libroru)
